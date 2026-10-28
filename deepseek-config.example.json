@@ -1,0 +1,14 @@
+{
+  "model": "deepseek-flash",
+  "reasoningEffort": "high",
+  "llm": {
+    "type": "openai_compatible",
+    "apiBase": "https://api.deepseek.com",
+    "apiKeyEnv": "DEEPSEEK_API_KEY",
+    "model": "deepseek-flash",
+    "thinking": true,
+    "supportsImages": true,
+    "maxTokens": 8192,
+    "timeoutSeconds": 120
+  }
+}

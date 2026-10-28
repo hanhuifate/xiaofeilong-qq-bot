@@ -1,0 +1,15 @@
+/runtime/
+/data/
+/logs/
+/work/
+/outputs/
+/sandbox/
+/node_modules/
+/config.json
+/status.json
+/*process.json
+/*.lnk
+/validation.json
+/.venv/
+**/__pycache__/
+*.pyc

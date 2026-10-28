@@ -1,0 +1,38 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>大肥龙 · 控制中心</title><link rel="stylesheet" href="/viewer.css">
+<header><strong>大肥龙</strong><span>本机控制中心</span><small id="status">正在连接</small></header>
+<main><aside><h2>群聊与私聊</h2><nav id="sessions"></nav></aside><section><h1 id="title">选择一段对话</h1>
+<p id="overview">正在读取运行状态…</p>
+<p id="metrics">读取本机记录与管理设置不调用模型。</p>
+<div class="toolbar"><select id="view"><option value="messages">聊天记录</option><option value="memories">话题与分层记忆</option><option value="relationships">群友关系</option><option value="decisions">接话与操作记录</option></select>
+<button id="pause-chat">暂停本对话</button><button id="resume-chat">恢复本对话</button>
+<button id="proactive-on">允许主动接话</button><button id="proactive-off">关闭主动接话</button></div>
+<details><summary>本机管理</summary><div class="control-grid">
+<div><h2>运行与数据</h2><button id="pause-all">紧急暂停全部回复</button><button id="resume-all">恢复全部回复</button>
+<button id="model-check">检查模型调用（消耗一次调用）</button><button id="backfill">补录当前群最近的 QQ 历史</button>
+<button id="backup">立即备份</button><button id="forget-person">删除指定群友的本机记忆</button><button id="forget-chat">清空本对话的本机记忆</button>
+<p class="hint">删除会重置后续模型上下文；历史备份和 Codex 软件中的旧聊天仍由本机管理者保管。</p>
+<label>安静时段（北京时间）<input id="quiet-hours" placeholder="例如 23,8；0,0 表示不启用"></label><button id="save-quiet">保存当前对话的安静时段</button></div>
+<div><h2>跨群记忆授权</h2><label>本对话可检索的其他群号<input id="shared-sources" placeholder="留空表示群间隔离"></label><button id="save-sharing">保存本对话的共享来源</button><p class="hint">只共享明确填写的群；私聊记录不会通过这个设置公开。已配置主人可在其私聊中检索其他对话。</p></div>
+<div><h2>群管理授权</h2><label>主人 QQ 号<input id="owners" placeholder="多个号码用逗号分隔"></label>
+<label><input type="checkbox" id="moderation-enabled">启用群管理</label><label><input type="checkbox" id="moderation-dry">演练模式（不执行管理操作）</label><button id="save-moderation">保存授权设置</button>
+<p class="hint">主人未配置时，申请只会记录。踢人、禁言等仍按真实权限和确认流程执行。</p></div>
+<div><h2>申请审核</h2><button id="refresh-requests">刷新待处理申请</button><div id="requests"></div></div>
+<div><h2>人格与表达</h2><label>聊天昵称<input id="persona-name"></label><label>能叫醒它的其他称呼（逗号分隔）<input id="persona-aliases"></label><label>完整人设与交流规则<textarea id="persona-style" rows="12"></textarea></label><label>聊天偏好（每行一条，最多20条，每条100字）<textarea id="persona-preferences" rows="8"></textarea></label><label>单次回复最多字数<input id="persona-max-chars" type="number" min="50" max="10000" step="1"></label><label>兴趣（逗号分隔）<input id="persona-interests"></label><button id="save-persona">保存人格，下次对话生效</button></div>
+<div><h2>模型提供商</h2><label>后端<select id="provider-backend"><option value="codex">Codex 固定 Thread</option><option value="openai_compatible">OpenAI / DeepSeek 兼容 API</option></select></label><label>模型名称<input id="provider-model" placeholder="例如实际可用的模型 ID"></label><label>Codex 推理强度<select id="provider-effort"><option>low</option><option>medium</option><option>high</option><option>xhigh</option></select></label><label>API Base URL<input id="provider-api-base" placeholder="https://api.deepseek.com"></label><label>API Key 环境变量名<input id="provider-key-env" value="DFL_API_KEY"></label><p id="provider-key-status" class="hint">密钥不会显示或回传。</p><label><input type="checkbox" id="provider-images">兼容模型支持图片输入</label><label>最大输出 token<input id="provider-max-tokens" type="number" min="512" max="8000"></label><label>最大 token 参数<select id="provider-token-field"><option value="max_tokens">max_tokens</option><option value="max_completion_tokens">max_completion_tokens</option></select></label><button id="save-provider">保存提供商并标记重启</button><p class="hint">密钥只从本机环境变量读取。切换提供商必须重启回复服务；不会把运行中的 Codex Thread 悄悄当成 API 会话。</p></div>
+<div><h2>群聊接话与头像</h2><label>主动接话最短间隔（秒）<input id="social-cooldown" type="number" min="5" max="600"></label><label>每群每小时主动回复上限<input id="social-hourly" type="number" min="1" max="120"></label><label>话题评估最短间隔（秒）<input id="social-evaluation" type="number" min="5" max="600"></label><label><input id="avatar-enabled" type="checkbox">允许明确请求时读取公开QQ头像</label><button id="save-social">保存全局群聊设置</button><p class="hint">频率是上限，不会定时刷屏；群友明确叫停或在对别人说话时仍保持距离。头像按需读取，不自动扫描群成员，也不把头像加入共享图库。</p></div>
+<div><h2>使用预算</h2><label>每日 token 上限（0 不限制）<input id="daily-tokens" type="number" min="0"></label><label>每小时 token 上限<input id="hourly-tokens" type="number" min="0"></label><button id="save-budget">保存预算</button>
+<details><summary>参考费用设置</summary><label>每百万普通输入 token 参考价<input id="input-price" type="number" min="0" step="0.01"></label><label>每百万缓存输入 token 参考价<input id="cache-price" type="number" min="0" step="0.01"></label><label>每百万输出 token 参考价<input id="output-price" type="number" min="0" step="0.01"></label><label>每日参考费用上限（0 不限制）<input id="daily-cost" type="number" min="0" step="0.01"></label><button id="save-pricing">保存参考价与费用限额</button><p class="hint">这里按自行填写的统一货币单位估算，不代表 Codex 订阅账单。</p></details>
+<h2>豆包扩展（备用）</h2><button data-doubao="Start">启动豆包浏览器</button><button data-doubao="Stop">停止豆包浏览器</button><button data-doubao="Restart">重启豆包浏览器</button><button data-doubao="Status">检查豆包连接</button></div>
+<div><h2>图片生成</h2><label>默认生图来源<select id="image-provider"><option value="chatgpt">ChatGPT 网页普通聊天</option><option value="doubao">豆包（备用）</option></select></label>
+<label><input id="image-enabled" type="checkbox">启用生图</label><label>桌面聊天分组名<input id="image-section" value="图片" maxlength="30"></label>
+<label>生成等待时间（秒）<input id="image-wait" type="number" min="180" max="3600" value="1200"></label><button id="save-image-provider">保存生图设置，立即生效</button>
+<p class="hint">每次生图新建普通聊天，完成后整理进桌面分组。超时继续观察同一任务；不会自动重复提交或切换备用来源。首次请双击 ChatGPT生图登录.cmd 安装并登录。</p>
+<button data-image="InstallExtension">打开本机扩展安装页</button><button data-image="Login">打开 ChatGPT 登录</button><button data-image="Start">启动浏览器守护</button><button data-image="Stop">停止浏览器守护</button><button data-image="Status">检查生图连接</button>
+<pre id="image-status">正在读取图片服务状态…</pre><div id="image-jobs"></div>
+<label>ChatGPT 本机试画提示词<input id="image-test-prompt" placeholder="填写要画的内容"></label><button id="image-test">试画 1 张（占用网页额度，不发 QQ）</button></div>
+<div><h2>独立运行</h2><button data-service="Status">查看独立服务</button><button data-service="EnableAutostart">启用登录 Windows 后自启</button><button data-service="DisableAutostart">关闭登录自启</button><p class="hint">回复、QQ 接入和豆包分别守护；检查进程和连接不会调用模型。电脑关闭或休眠时不能持续在线。</p></div>
+</div><p id="control-result" role="status"></p></details>
+<details><summary>后台调用统计</summary><button id="refresh-diagnostics">查看最近 24 小时</button><pre id="diagnostics-result">按需读取；不调用模型，不保存聊天正文。</pre></details>
+<div id="messages"></div></section></main>
+<script src="/viewer.js"></script></html>

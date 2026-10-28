@@ -1,0 +1,11 @@
+{
+  "llm": {
+    "type": "openai_compatible",
+    "apiBase": "https://YOUR-PROVIDER.example/v1",
+    "model": "YOUR-MODEL",
+    "apiKeyEnv": "DFL_API_KEY",
+    "supportsImages": false,
+    "timeoutSeconds": 90,
+    "maxTokens": 3000
+  }
+}

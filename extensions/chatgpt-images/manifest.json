@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "小肥龙 · ChatGPT 图片桥接",
+  "version": "1.0.0",
+  "description": "仅在专用新聊天提交明确的生图请求，将实际图片传回本机 QQ 服务。",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://*.oaiusercontent.com/*",
+    "http://127.0.0.1:6103/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "小肥龙图片桥接设置"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy+ojnaMYoLUsaDpes3S5MW1dkeepG1Q2xHL00GWc4kv4gpqFJt9HxCw8yDdF5TZJI0xfUm4LWvtLXGEBa/40n9HZzraj1v5RI+mVRTAORK7k0kiAylNqR9H9iz1B0GpKW58neZy5WOU+ctrEvt9U7r6Wwo0XY8SbNRg6NLlrHr9aByKy6asTdcZ6pNZzolRo4r9tbTEUOvH9UWR+6cIRL6woLxJOIKv7DgUk6Q5OI43adSLAW42YKVvqi3sEc13MrFFLGgeIkexOhGmocxlaEHlc8MayhReXAqJNsoXAt/OxDYfxRiVo96M706SuPbHjXl8wa2FbB1cDzMy4avNXBwIDAQAB"
+}

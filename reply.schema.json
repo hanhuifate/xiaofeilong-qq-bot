@@ -1,0 +1,345 @@
+{
+  "type": "object",
+  "properties": {
+    "shouldReply": {
+      "type": "boolean"
+    },
+    "text": {
+      "type": "string"
+    },
+    "imageId": {
+      "type": "string"
+    },
+    "faceIds":{"type":"array","items":{"type":"integer"}},
+    "avatarUserId":{"type":"string"},
+    "pokeTarget": {
+      "type": "string"
+    },
+    "interactionBoundary":{"type":"object","properties":{"withdraw":{"type":"boolean"},"seconds":{"type":"integer"},"sourceId":{"type":"string"}},"required":["withdraw","seconds","sourceId"],"additionalProperties":false},
+    "memoryQuery": {
+      "type": "string"
+    },
+    "memoryControl":{"type":"object","properties":{"operation":{"type":"string","enum":["none","forget_me","pause_memory","resume_memory"]},"sourceId":{"type":"string"}},"required":["operation","sourceId"],"additionalProperties":false},
+    "memoryUpdates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "episodic",
+              "longterm",
+              "correction",
+              "preference"
+            ]
+          },
+          "userId": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "integer"
+          },
+          "expiresDays": {
+            "type": "integer"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "sourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "userId",
+          "key",
+          "text",
+          "importance",
+          "expiresDays",
+          "sensitive",
+          "sourceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "socialUpdate": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "topic": {
+          "type": "string"
+        },
+        "sourceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "openLoops": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "sourceId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "userId",
+              "question",
+              "sourceId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "followupAfterSeconds": {
+          "type": "integer"
+        },
+        "followupTopic": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "topic",
+        "sourceIds",
+        "topics",
+        "openLoops",
+        "followupAfterSeconds",
+        "followupTopic"
+      ],
+      "additionalProperties": false
+    },
+    "management": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "none",
+            "propose",
+            "confirm",
+            "cancel"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "none",
+            "mute",
+            "unmute",
+            "kick",
+            "recall",
+            "announcement",
+            "essence",
+            "unessence",
+            "friend_request",
+            "group_request"
+          ]
+        },
+        "targetUser": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "integer"
+        },
+        "content": {
+          "type": "string"
+        },
+        "requestKey": {
+          "type": "string"
+        },
+        "approve": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "operation",
+        "kind",
+        "targetUser",
+        "messageId",
+        "duration",
+        "content",
+        "requestKey",
+        "approve"
+      ],
+      "additionalProperties": false
+    },
+    "doubaoImage": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string"
+        },
+        "ratio": {
+          "type": "string",
+          "enum": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "3:2",
+            "2:3"
+          ]
+        }
+      },
+      "required": [
+        "prompt",
+        "ratio"
+      ],
+      "additionalProperties": false
+    },
+    "browserAction": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "none",
+            "open",
+            "click",
+            "type",
+            "scroll",
+            "back",
+            "screenshot",
+            "submitTest"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "deltaY": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "url",
+        "x",
+        "y",
+        "text",
+        "deltaY"
+      ],
+      "additionalProperties": false
+    },
+    "wakePlan": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "dive",
+            "observe",
+            "engage"
+          ]
+        },
+        "seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "seconds"
+      ],
+      "additionalProperties": false
+    },
+    "imageNotes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "replyAssessment": {
+      "type": "object",
+      "properties": {
+        "addressee": {
+          "type": "string",
+          "enum": [
+            "bot",
+            "group",
+            "other",
+            "unclear"
+          ]
+        },
+        "addsNewInformation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "addressee",
+        "addsNewInformation"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "shouldReply",
+    "text",
+    "imageId",
+    "faceIds",
+    "avatarUserId",
+    "pokeTarget",
+    "interactionBoundary",
+    "imageNotes",
+    "memoryQuery",
+    "memoryControl",
+    "memoryUpdates",
+    "socialUpdate",
+    "management",
+    "doubaoImage",
+    "browserAction",
+    "wakePlan",
+    "replyAssessment"
+  ],
+  "additionalProperties": false
+}
