@@ -30,6 +30,7 @@ function Refresh-Account {
     $cfg = Get-Content -LiteralPath (Join-Path $taskRoot 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $risk = Get-QQRiskState -Root $taskRoot
     $window.FindName('Current').Text = '当前配置的机器人QQ：' + $cfg.botQQ
+    $health = Get-DafeilongQQHealth -Root $taskRoot
     $online = $false
     try {
         $state = Get-Content -LiteralPath (Join-Path $taskRoot 'status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -41,6 +42,8 @@ function Refresh-Account {
     } catch { }
     $window.FindName('Connection').Text = if($risk.paused){
         'QQ 风控安全暂停：机器人 QQ、OneBot、AstrBot 和回复服务均已停用。'
+    } elseif ($health.loginState -eq 'credentials_expired') {
+        $health.loginReason
     } elseif($online){
         'QQ 登录与回复链路已连接。'
     } else {

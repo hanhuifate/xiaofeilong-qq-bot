@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "小肥龙 · ChatGPT 图片桥接",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "仅在专用新聊天提交明确的生图请求，将实际图片传回本机 QQ 服务。",
   "permissions": [
     "storage",

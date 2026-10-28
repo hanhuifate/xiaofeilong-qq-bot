@@ -102,6 +102,8 @@ function Get-BotState {
         Adapter = $health.onebotListening
         AdapterProcess = $health.processExists
         LoginConfirmed = $health.loginConfirmed
+        LoginState = $health.loginState
+        LoginReason = $health.loginReason
         AstrBotGateway = $health.astrBotGateway
         ReplyReady = $health.bridgeReady
         ReplyError = $replyError
@@ -122,6 +124,9 @@ function Update-Status {
     if ($state.RiskPaused) {
         $statusText.Text = '● QQ 风控安全暂停'
         $statusText.Foreground = [System.Windows.Media.Brushes]::Firebrick
+    } elseif ($state.LoginState -eq 'credentials_expired') {
+        $statusText.Text = '● QQ 登录身份已失效，需要本人重新登录'
+        $statusText.Foreground = [System.Windows.Media.Brushes]::DarkOrange
     } elseif ($state.Bridge -and $state.LoginConfirmed -and $state.AstrBotGateway -and -not $state.ReplyError) {
         $statusText.Text = '● 机器人正在运行'
         $statusText.Foreground = [System.Windows.Media.Brushes]::ForestGreen
@@ -146,6 +151,7 @@ function Update-Status {
     }
     $parts = @()
     if ($state.RiskPaused) { $parts += ('原因：' + $state.RiskReason) }
+    if ($state.LoginReason) { $parts += $state.LoginReason }
     if ($state.Detail) { $parts += ('异常：' + $state.Detail) }
     $parts += if ($state.AdapterProcess) { 'QQ 进程：运行' } else { 'QQ 进程：停止' }
     $parts += if ($state.LoginConfirmed) { 'QQ 登录：已确认' } else { 'QQ 登录：未确认' }

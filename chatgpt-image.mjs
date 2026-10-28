@@ -54,9 +54,11 @@ export class ChatGPTImageService {
   }
   persist(){write(this.file,this.jobs);}
   settings(){return this.cfg.capabilities?.imageGeneration||{};}
-  status(){return {service:this.server?.listening?'ok':'offline',browserConnected:Date.now()-this.worker.at<45000,
+  status(){const active=Object.values(this.jobs).find(j=>!imageFinalStates.has(j.status)&&j.status!=='queued');return {service:this.server?.listening?'ok':'offline',browserConnected:Date.now()-this.worker.at<45000,
     pageReady:Date.now()-this.worker.at<45000&&this.worker.pageReady===true&&!this.worker.quotaRequired,quotaRequired:this.worker.quotaRequired===true,loginRequired:this.worker.loginRequired===true,
-    captchaRequired:this.worker.captchaRequired===true,activeJob:Object.values(this.jobs).find(j=>!imageFinalStates.has(j.status)&&j.status!=='queued')?.id||'',
+    captchaRequired:this.worker.captchaRequired===true,activeJob:active?.id||'',workerChanged:!!(active&&this.worker.clientId&&active.clientId!==this.worker.clientId),
+    workerVersion:this.worker.version||'',generating:this.worker.generating===true,imageDetected:this.worker.imageDetected===true,
+    assistantTurns:this.worker.assistantTurns||0,imageCandidates:this.worker.imageCandidates||0,
     lastError:this.lastError||'',jobs:Object.values(this.jobs).slice(-12).reverse().map(j=>({id:j.id,status:j.status,late:!!j.late,createdAt:j.createdAt,conversationUrl:j.conversationUrl||'',groupStatus:j.groupStatus||'pending'}))};}
   async available(){const s=this.status();return s.service==='ok'&&s.pageReady;}
   async generate(chat,request) {
@@ -122,6 +124,17 @@ export class ChatGPTImageService {
   }
   jobStatus(id){const j=this.jobs[id];return j?{ok:true,job_id:id,status:j.status,stage:j.error||j.status,images:j.images||[],conversationUrl:j.conversationUrl||''}:{ok:false};}
   cancel(id){const j=this.jobs[id];if(!j)throw Error('IMAGE_JOB_NOT_FOUND');if(!imageFinalStates.has(j.status)){j.status='cancelled';j.updatedAt=Date.now();this.persist();}return {ok:true};}
+  resumeExisting(id){
+    const j=this.jobs[id];if(!j||!conversationId(j.conversationUrl))throw Error('EXISTING_CONVERSATION_REQUIRED');
+    if(j.status==='completed')return {ok:true,status:j.status};
+    if(['cancelled','failed','quota_exhausted'].includes(j.status))throw Error('JOB_TERMINAL');
+    if(!this.status().pageReady||!this.worker.clientId)throw Error('CHATGPT_NOT_READY');
+    // Explicit local recovery only exports the saved conversation. Rotate the
+    // lease so a removed/reinstalled worker cannot keep writing to this job.
+    j.clientId=this.worker.clientId;j.lease=randomBytes(24).toString('hex');
+    j.status='running';j.resumeStatus='opening';j.error='';j.updatedAt=Date.now();j.recoveredAt=Date.now();this.persist();
+    return {ok:true,status:'running',conversationUrl:j.conversationUrl};
+  }
   imagePath(value) {
     if(typeof value!=='string'||!fs.existsSync(value)||!fs.existsSync(this.outputRoot))return null;
     const real=fs.realpathSync(value),base=fs.realpathSync(this.outputRoot);
@@ -155,7 +168,14 @@ export class ChatGPTImageService {
         if(!['/worker/heartbeat','/worker/claim','/worker/update','/worker/image'].includes(req.url)||!req.headers['content-type']?.startsWith('application/json'))return send(403,{error:'FORBIDDEN'});
         let size=0;const chunks=[];for await(const chunk of req){size+=chunk.length;if(size>(req.url==='/worker/image'?45*1024*1024:12000))return send(413,{error:'BODY_TOO_LARGE'});chunks.push(chunk);}
         const input=JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        if(req.url==='/worker/heartbeat') {this.worker={at:Date.now(),pageReady:input.pageReady===true,quotaRequired:input.quotaRequired===true,loginRequired:input.loginRequired===true,captchaRequired:input.captchaRequired===true};return send(200,{ok:true});}
+        if(req.url==='/worker/heartbeat') {
+          const count=value=>Number.isInteger(value)&&value>=0&&value<=10000?value:0;
+          this.worker={at:Date.now(),pageReady:input.pageReady===true,quotaRequired:input.quotaRequired===true,loginRequired:input.loginRequired===true,captchaRequired:input.captchaRequired===true,
+            clientId:/^[a-zA-Z0-9-]{16,80}$/.test(String(input.clientId||''))?String(input.clientId):'',
+            version:/^\d+(?:\.\d+){0,3}$/.test(String(input.workerVersion||''))?String(input.workerVersion).slice(0,24):'',
+            generating:input.generating===true,imageDetected:!!input.image,assistantTurns:count(input.assistantTurns),imageCandidates:count(input.imageCandidates)};
+          return send(200,{ok:true});
+        }
         if(req.url==='/worker/claim')return send(200,{ok:true,job:this.claim(input.clientId)});
         if(req.url==='/worker/update')return send(200,await this.updateJob(input));
         return send(200,await this.acceptImage(input));

@@ -2,9 +2,9 @@ param([ValidateSet('Ensure','Start','Stop','Restart','Status','Login','InstallEx
 $ErrorActionPreference='Stop'
 $taskRoot=$PSScriptRoot
 $localRoot=Join-Path $env:LOCALAPPDATA 'Xiaofeilong\ChatGPTImages'
-$profile=Join-Path $localRoot 'profile'
 $browserState=Join-Path $taskRoot 'data\chatgpt-image-browser.json'
 $state=if(Test-Path -LiteralPath $browserState){Get-Content -LiteralPath $browserState -Raw -Encoding UTF8 | ConvertFrom-Json}else{$null}
+$profile=if($state.userDataDirectory){[IO.Path]::GetFullPath([string]$state.userDataDirectory)}else{Join-Path $localRoot 'profile'}
 $extension=Join-Path $taskRoot 'extensions\chatgpt-images'
 function Get-ImageBrowser {
   Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {$_.Name -eq 'chrome.exe' -and $_.CommandLine -like "*--user-data-dir=$profile*" -and $_.CommandLine -notmatch '\s--type='}
@@ -14,10 +14,15 @@ if($Action -eq 'Status') {
   exit
 }
 if($Action -in @('Stop','Restart')) {
-  foreach($item in @(Get-ImageBrowser)){if($item.CommandLine -like "*--user-data-dir=$profile*"){& taskkill.exe /PID $item.ProcessId /T /F | Out-Null}}
+  foreach($item in @(Get-ImageBrowser)){if($item.CommandLine -like "*--user-data-dir=$profile*"){Stop-Process -Id $item.ProcessId -Force -ErrorAction SilentlyContinue}}
   if($Action -eq 'Stop'){[pscustomobject]@{running=$false;enabled=$false}|ConvertTo-Json -Compress;exit}
 }
 if(-not $state -or -not (Test-Path -LiteralPath $state.executable)){throw 'Run Setup-ChatGPT-Images.ps1 first.'}
+if(-not $state.userDataDirectory){
+  $state | Add-Member -NotePropertyName userDataDirectory -NotePropertyValue $profile -Force
+  [IO.File]::WriteAllText($browserState+'.tmp',($state|ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding $false))
+  Move-Item -LiteralPath ($browserState+'.tmp') -Destination $browserState -Force
+}
 if($state.browserMode -eq 'installed') {
   $publisher=Get-AuthenticodeSignature -LiteralPath $state.executable
   if([IO.Path]::GetFileName($state.executable) -ne 'chrome.exe' -or $publisher.Status -ne 'Valid' -or $publisher.SignerCertificate.Subject -notmatch 'Google LLC'){throw 'Installed browser validation failed.'}
@@ -41,6 +46,7 @@ elseif($Action -eq 'Login') {
 $arguments=@(('"--user-data-dir='+$profile+'"'),'--no-first-run','--disable-session-crashed-bubble',$target)
 if($state.browserMode -ne 'installed'){$arguments+=('"--load-extension='+$extension+'"')}
 if(-not (Get-ImageBrowser) -or $Action -in @('Login','InstallExtension')) {
+  & (Join-Path $taskRoot 'Keep-DevMode.ps1') -ProfilePath $profile | Out-Null
   New-Item -ItemType Directory -Force -Path $profile | Out-Null
   if($Action -in @('Login','InstallExtension')){Start-Process -FilePath $state.executable -WorkingDirectory (Split-Path $state.executable) -ArgumentList $arguments -WindowStyle Normal | Out-Null}
   else {Start-Process -FilePath $state.executable -WorkingDirectory (Split-Path $state.executable) -ArgumentList ($arguments+'--start-minimized') -WindowStyle Hidden | Out-Null}

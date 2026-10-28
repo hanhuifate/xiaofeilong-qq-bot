@@ -26,7 +26,7 @@ async function tick(){
   if(busy)return;busy=true;
   try {
     let c=await config();if(!c.token)return;c=await ensureWorker(c);
-    let state=await inspect(c.workerTab);await api('/worker/heartbeat',state);
+    let state=await inspect(c.active?.tab||c.workerTab);await api('/worker/heartbeat',{...state,workerVersion:chrome.runtime.getManifest().version});
     const {job}=await api('/worker/claim');
     if(!job){if(c.active)await chrome.storage.local.remove('active');return;}
     if(c.active&&c.active.id!==job.id){await chrome.storage.local.remove('active');c.active=null;}
@@ -40,6 +40,16 @@ async function tick(){
       await chrome.storage.local.set({workerTab:tab.id,active:c.active});return;
     }
     if(!c.active.tab){await patch(job,'attention_required',{error:'WORKER_TAB_UNCERTAIN'});return;}
+    if(job.conversationUrl){
+      let tab;try{tab=await chrome.tabs.get(c.active.tab);}catch{}
+      if(!tab||String(tab.url||'').split(/[?#]/)[0]!==job.conversationUrl){
+        // Tab ids do not survive every browser restart. Reopen only the saved
+        // conversation; an already submitted prompt is never sent again.
+        const restored=await chrome.tabs.create({url:job.conversationUrl,active:false});
+        c.active.tab=restored.id;c.active.attempted=true;c.workerTab=restored.id;
+        await chrome.storage.local.set({workerTab:restored.id,active:c.active});return;
+      }
+    }
     state=await inspect(c.active.tab);
     if(state.captchaRequired){await patch(job,'captcha_required');return;}
     if(state.loginRequired){await patch(job,'login_required');return;}
@@ -95,3 +105,4 @@ chrome.action.onClicked.addListener(()=>chrome.runtime.openOptionsPage());
 chrome.alarms.create('qq-images',{periodInMinutes:0.5});
 chrome.alarms.onAlarm.addListener(a=>{if(a.name==='qq-images')void tick();});
 chrome.runtime.onStartup.addListener(()=>void tick());
+void tick();

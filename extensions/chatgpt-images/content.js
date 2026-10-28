@@ -2,19 +2,28 @@
   const visible=e=>!!e&&e.getClientRects().length>0;
   const composer=()=>[...document.querySelectorAll('#prompt-textarea,[role="textbox"][contenteditable="true"],textarea')].find(visible);
   const button=(pattern)=>[...document.querySelectorAll('button,[role="button"]')].find(e=>visible(e)&&pattern.test((e.getAttribute('aria-label')||'')+' '+e.innerText));
-  const imageAllowed=value=>{try{const u=new URL(value,location.href);return u.protocol==='https:'&&(u.hostname==='chatgpt.com'||u.hostname.endsWith('.oaiusercontent.com'));}catch{return false;}};
+  const imageAllowed=value=>{try{const u=new URL(value,location.href);return u.protocol==='https:'&&(u.hostname==='chatgpt.com'||u.hostname.endsWith('.oaiusercontent.com'))||u.protocol==='blob:'&&u.origin===location.origin||/^data:image\/(?:png|jpeg|webp|avif);base64,/i.test(value);}catch{return false;}};
+  function imageState(){
+    // Image cards can be siblings of the inner assistant text message. Use
+    // the complete turn rather than the last nested text-only container.
+    const assistants=[...document.querySelectorAll('[data-message-author-role="assistant"],article[data-turn="assistant"]')];
+    const node=assistants.at(-1),turn=node?.closest('article')||node;
+    const candidates=[...new Set([...(turn?.querySelectorAll('img')||[]),...document.querySelectorAll('main img')])]
+      .filter(img=>!img.closest('[data-message-author-role="user"],article[data-turn="user"]'));
+    const generated=candidates.filter(img=>visible(img)&&img.complete&&img.naturalWidth>=512&&img.naturalHeight>=512&&imageAllowed(img.currentSrc||img.src));
+    const img=generated.at(-1);
+    return {turn,img,assistantTurns:assistants.length,imageCandidates:candidates.length};
+  }
   function state(){
     const text=document.body?.innerText||'',box=composer();
     const loginRequired=!!button(/^\s*(Log in|Sign in|登录|登陆)\s*$/i)||/^\/(auth|login)(\/|$)/.test(location.pathname);
     const captchaRequired=/Verify you are human|确认您是真人|验证您是人类/i.test(text);
-    const assistants=[...document.querySelectorAll('[data-message-author-role="assistant"],article[data-turn="assistant"]')];
-    const last=assistants.at(-1),lastText=last?.innerText||'';
-    const generated=[...(last?.querySelectorAll('img')||[])].filter(img=>visible(img)&&img.complete&&img.naturalWidth>=512&&img.naturalHeight>=512&&imageAllowed(img.currentSrc||img.src));
-    const img=generated.at(-1);
+    const {turn:last,img,assistantTurns,imageCandidates}=imageState(),lastText=last?.innerText||'';
     const url=/^\/c\/[a-f0-9-]{36}$/.test(location.pathname)?location.origin+location.pathname:'';
     return {pageReady:!!box&&!loginRequired&&!captchaRequired,loginRequired,captchaRequired,
       fresh:location.pathname==='/'&&!document.querySelector('[data-message-author-role]')&&!(box?.innerText||box?.value||'').trim(),
-      conversationUrl:url,generating:!!button(/Stop generating|停止生成|停止流式传输/i)||last?.getAttribute('aria-busy')==='true',
+      conversationUrl:url,generating:!!button(/Stop generating|停止生成|停止流式传输/i)||!img&&last?.getAttribute('aria-busy')==='true',
+      assistantTurns,imageCandidates,
       quotaRequired:/image generation limit|reached.*image.*limit|图片生成.*(?:上限|限额)|生图.*额度不足/i.test(lastText),
       refused:!img&&/I (?:can't|cannot) (?:help|generate)|无法生成这张|不能生成这类/i.test(lastText),
       image:img?{url:img.currentSrc||img.src,width:img.naturalWidth,height:img.naturalHeight}:null};
@@ -42,7 +51,15 @@
       try{
         const response=await fetch(message.url,{credentials:'include',signal:AbortSignal.timeout(90000)});
         if(!response.ok||!response.headers.get('content-type')?.startsWith('image/'))return {ok:false,error:'IMAGE_READ_FAILED'};
-        const blob=await response.blob();if(blob.size>32*1024*1024)return {ok:false,error:'IMAGE_TOO_LARGE'};
+        let blob=await response.blob();if(blob.size>32*1024*1024)return {ok:false,error:'IMAGE_TOO_LARGE'};
+        if(blob.type==='image/avif'){
+          const bitmap=await createImageBitmap(blob);
+          try{if(bitmap.width>8192||bitmap.height>8192||bitmap.width*bitmap.height>32*1024*1024)return {ok:false,error:'IMAGE_TOO_LARGE'};
+            const canvas=new OffscreenCanvas(bitmap.width,bitmap.height);canvas.getContext('2d').drawImage(bitmap,0,0);blob=await canvas.convertToBlob({type:'image/png'});
+          }finally{bitmap.close();}
+        }
+        if(!/^image\/(?:png|jpeg|webp)$/.test(blob.type))return {ok:false,error:'IMAGE_FORMAT_UNSUPPORTED'};
+        if(blob.size>32*1024*1024)return {ok:false,error:'IMAGE_TOO_LARGE'};
         const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(blob);});
         return {ok:true,base64};
       }catch{return {ok:false,error:'IMAGE_READ_FAILED'};}

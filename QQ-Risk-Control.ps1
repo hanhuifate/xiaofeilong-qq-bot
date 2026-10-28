@@ -98,6 +98,47 @@ function Get-OwnedNapCatProcesses {
         Where-Object { $_.ExecutablePath -eq $launcherPath -and $_.CommandLine -match $pattern })
 }
 
+function Get-QQLoginDiagnostic {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$BotQQ
+    )
+
+    $result = [pscustomobject]@{ state = 'unknown'; reason = ''; source = 'napcat-log' }
+    $recordPath = Join-Path $Root 'napcat-process.json'
+    $logPath = Join-Path $Root 'logs\napcat.log'
+    try {
+        $record = Get-Content -LiteralPath $recordPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$record.botQQ -ne $BotQQ -or -not $record.startedAt) { return $result }
+        $since = [DateTimeOffset]::Parse($record.startedAt).LocalDateTime.AddSeconds(-2)
+        # The first part retains the quick-login error after QR refreshes fill
+        # the tail. Inspect only this account's current launch, never old logs.
+        $lines = @(Get-Content -LiteralPath $logPath -Head 160 -Encoding UTF8 -ErrorAction Stop) +
+            @(Get-Content -LiteralPath $logPath -Tail 120 -Encoding UTF8 -ErrorAction Stop)
+        $log = Get-Item -LiteralPath $logPath -ErrorAction Stop
+        if ($log.LastWriteTime -lt $since) { return $result }
+        $hasQr = $false
+        foreach ($line in $lines) {
+            if ($line -notmatch '^(?<date>\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s') { continue }
+            $stamp = [datetime]::ParseExact(
+                ([string]$since.Year + '-' + $Matches.date), 'yyyy-MM-dd HH:mm:ss',
+                [System.Globalization.CultureInfo]::InvariantCulture)
+            if ($stamp -lt $since) { continue }
+            if ($line -match '快速登录错误.*(?:用户身份已失效|身份.*失效|请.*重新登录)') {
+                $result.state = 'credentials_expired'
+                $result.reason = 'QQ 拒绝快速登录：保存的登录身份已失效，需要本人重新登录一次。'
+                return $result
+            }
+            if ($line -match '请扫描下面的二维码') { $hasQr = $true }
+        }
+        if ($hasQr) {
+            $result.state = 'login_required'
+            $result.reason = 'QQ 正在等待本人完成登录或验证。'
+        }
+    } catch { }
+    return $result
+}
+
 function Get-DafeilongQQHealth {
     param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -133,6 +174,16 @@ function Get-DafeilongQQHealth {
         Where-Object { $_.CommandLine -and $_.CommandLine.Contains($astrbotRunner) } |
         Select-Object -First 1
 
+    $loginDiagnostic = [pscustomobject]@{ state = 'unknown'; reason = ''; source = '' }
+    if ($bridgeReady -and $qqOnline) {
+        $loginDiagnostic.state = 'online'
+    } elseif ($onebotListening) {
+        # A previous failed quick login must not override a now-live endpoint.
+        $loginDiagnostic.state = 'checking_connection'
+    } else {
+        $loginDiagnostic = Get-QQLoginDiagnostic -Root $Root -BotQQ ([string]$cfg.botQQ)
+    }
+
     [pscustomobject]@{
         configuredQQ = [string]$cfg.botQQ
         riskPaused = $risk.paused -eq $true
@@ -140,6 +191,8 @@ function Get-DafeilongQQHealth {
         riskUpdatedAt = $risk.updatedAt
         processExists = [bool]$processExists
         loginConfirmed = [bool]($bridgeReady -and $qqOnline)
+        loginState = $loginDiagnostic.state
+        loginReason = $loginDiagnostic.reason
         onebotListening = [bool]$onebotListening
         astrBotGateway = $null -ne $astrbotProcess
         bridgeProcess = [bool]$bridgeProcess

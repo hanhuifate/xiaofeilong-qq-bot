@@ -94,7 +94,7 @@ document.querySelector('#save-image-provider').onclick=()=>control(()=>post('/ap
   sectionName:document.querySelector('#image-section').value,waitTimeoutSeconds:Number(document.querySelector('#image-wait').value)}));
 for(const node of document.querySelectorAll('[data-image]'))node.onclick=()=>control(async()=>{
   const result=await post('/api/image-generation',{action:node.dataset.image});
-  if(node.dataset.image==='Status'){const s=result.chatgpt;return {message:`ChatGPT 服务：${s.service}；扩展：${s.browserConnected?'已连接':'未连接'}；页面：${s.pageReady?'就绪':s.loginRequired?'需要登录':'未就绪'}`};}return result;
+  if(node.dataset.image==='Status'){const s=result.chatgpt;return {message:`ChatGPT 服务：${s.service}；扩展：${s.browserConnected?'已连接':'未连接'}；页面：${!s.browserConnected?'未知（请先加载扩展并配对）':s.pageReady?'就绪':s.loginRequired?'需要登录':'未就绪'}`};}return result;
 });
 document.querySelector('#image-test').onclick=async()=>{
   const button=document.querySelector('#image-test');button.disabled=true;
@@ -117,12 +117,14 @@ async function refresh() {
   try {
     const overview=await get('/api/overview');
     const image=await get('/api/image-generation'),imageState=image.chatgpt||{};
-    document.querySelector('#image-status').textContent=`默认来源：${image.providerLabel||'未配置'}\nChatGPT 本机服务：${imageState.service==='ok'?'在线':'未连接'}；浏览器扩展：${imageState.browserConnected?'已连接':'未连接'}；网页：${imageState.pageReady?'就绪':imageState.quotaRequired?'生图额度不足':imageState.captchaRequired?'需要手动验证':imageState.loginRequired?'需要登录':'未就绪'}`;
+    document.querySelector('#image-status').textContent=`默认来源：${image.providerLabel||'未配置'}\nChatGPT 本机服务：${imageState.service==='ok'?'在线':'未连接'}；浏览器扩展：${imageState.browserConnected?'已连接':'未连接'}；网页：${!imageState.browserConnected?'未知（请先加载扩展并配对）':imageState.pageReady?'就绪':imageState.quotaRequired?'生图额度不足':imageState.captchaRequired?'需要手动验证':imageState.loginRequired?'需要登录':'未就绪'}`;
     const jobs=document.querySelector('#image-jobs');jobs.replaceChildren();
     for(const job of imageState.jobs||[]){const title=({queued:'排队',opening:'打开新聊天',submitting:'提交中',running:'生成中',downloading:'取回图片',completed:'已保存图片',login_required:'等待登录',captcha_required:'等待手动验证',attention_required:'需检查网页',quota_exhausted:'额度不足',cancelled:'已取消等待',failed:'未成图'})[job.status]||job.status;
       const delivery=({waiting:'等待图片',ready:'等待 QQ 连接',sending:'发送中',delivered:'已发回 QQ',delivery_uncertain:'发送结果待核对',uncertain:'仍待确认结果'})[job.deliveryStatus]||'';
       const item=article(jobs,job.id+' · '+title+(job.late?'（继续等待中）':''),`对话收纳：${job.groupStatus==='grouped'?'已归入分组':'待同步'}${delivery?' · '+delivery:''} · ${new Date(job.createdAt).toLocaleString()}`);
       if(job.conversationUrl&&/^https:\/\/chatgpt\.com\/c\/[a-f0-9-]{36}$/.test(job.conversationUrl)){const link=document.createElement('a');link.href=job.conversationUrl;link.target='_blank';link.rel='noreferrer';link.textContent='查看图片聊天';item.append(link);}
+      if(job.status==='completed'&&!job.deliveryStatus){const forward=document.createElement('button');forward.textContent='发给主人私聊';forward.onclick=()=>control(()=>post('/api/image-generation',{action:'sendToOwner',jobId:job.id}));item.append(forward);}
+      if(job.conversationUrl&&!['completed','cancelled','failed','quota_exhausted'].includes(job.status)){const resume=document.createElement('button');resume.textContent='继续取已有图片';resume.onclick=()=>control(()=>post('/api/image-generation',{action:'resumeExisting',jobId:job.id}));item.append(resume);}
       if(!['completed','cancelled','failed','quota_exhausted','attention_required'].includes(job.status)){const cancel=document.createElement('button');cancel.textContent='取消等待';cancel.onclick=()=>control(async()=>{if(!confirm('停止等待此任务？已经提交到网页的生成请求和聊天记录仍然保留。'))return {message:'继续等待。'};return post('/api/image-generation',{action:'cancel',jobId:job.id});});item.append(cancel);}
     }
     const daily=overview.budget?.day,storage=overview.storage;

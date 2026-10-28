@@ -78,6 +78,43 @@ test('switching providers keeps old deliveries bound and settings persist withou
   assert.throws(()=>images.saveSettings({provider:'unknown'}));assert.equal(images.provider,'doubao');
 });
 
+test('reinstalled worker can explicitly export the same saved chat while the old lease is revoked',async t=>{
+  const {service}=setup(t);service.worker={at:Date.now(),pageReady:true,clientId};
+  const created=await service.generate('local-panel',{prompt:'只取已有图片'}),old=service.claim(clientId);
+  await service.updateJob({...old,clientId,status:'running',conversationUrl:url});
+  const replacement='replacement-client-00001';service.worker={at:Date.now(),pageReady:true,clientId:replacement};
+  assert.equal(service.claim(replacement),null);assert.equal(service.status().workerChanged,true);
+  service.resumeExisting(created.job_id);const recovered=service.claim(replacement);
+  assert.equal(recovered.id,created.job_id);assert.equal(recovered.conversationUrl,url);assert.equal(recovered.status,'opening');
+  assert.equal(Object.keys(service.jobs).length,1);assert.equal(service.claim(clientId),null);
+  await assert.rejects(service.updateJob({...old,clientId,status:'downloading'}),/LEASE/);
+  await service.updateJob({...recovered,clientId:replacement,status:'downloading',conversationUrl:url});
+  await service.acceptImage({...recovered,clientId:replacement,base64:png().toString('base64')});
+  assert.equal(service.jobStatus(created.job_id).status,'completed');
+});
+
+test('panel only forwards a completed local test to the configured owner and preserves one delivery',async t=>{
+  const {root}=setup(t),images=new ImageGenerationService({capabilities:{}},root);let owners=[];const watched=new Set();
+  images.chatgpt.onConversation=async()=>{};
+  images.chatgpt.worker={at:Date.now(),pageReady:true};
+  const bot={doubao:images,moderation:{settings:()=>({owners})},watchDoubaoDelivery:id=>watched.add(id)};
+  const server=await startViewer(root,{state:{sessions:{}}},{},0,null,{bot});t.after(()=>server.close());
+  const base='http://127.0.0.1:'+server.address().port,headers={'Content-Type':'application/json',Authorization:'Bearer '+fs.readFileSync(path.join(root,'data/viewer-token.txt'),'utf8').trim()};
+  const post=body=>fetch(base+'/api/image-generation',{method:'POST',headers,body:JSON.stringify(body)});
+  const created=await images.generate('local-panel',{prompt:'本机测试'}),job=images.chatgpt.claim(clientId),action={action:'sendToOwner',jobId:created.job_id,userId:'999999999'};
+  assert.equal((await post(action)).ok,false);owners=['1000000002'];assert.equal((await post(action)).ok,false);
+  await images.chatgpt.updateJob({...job,clientId,status:'running',conversationUrl:url});
+  await images.chatgpt.acceptImage({...job,clientId,base64:png().toString('base64')});
+  assert.equal((await post(action)).ok,true);const delivery=structuredClone(images.deliveries[job.id]);
+  assert.equal(delivery.chat,'private:1000000002');assert.equal(delivery.event.user_id,1000000002);
+  assert.equal((await post(action)).ok,true);assert.deepEqual(images.deliveries[job.id],delivery);
+  assert.equal(Object.keys(images.deliveries).length,1);assert.equal(watched.size,1);
+  const foreign=await images.generate('private:123456789',{prompt:'其他私聊图片'}),other=images.chatgpt.claim(clientId);
+  await images.chatgpt.updateJob({...other,clientId,status:'running',conversationUrl:url.replace('abc','abd')});
+  await images.chatgpt.acceptImage({...other,clientId,base64:png().toString('base64')});
+  assert.equal((await post({...action,jobId:foreign.job_id})).ok,false);assert.equal(Object.keys(images.deliveries).length,1);
+});
+
 test('panel saves image source without exposing worker credentials and can cancel a queued local job',async t=>{
   const {root}=setup(t),images=new ImageGenerationService({capabilities:{}},root);
   const server=await startViewer(root,{state:{sessions:{}}},{},0,null,{bot:{doubao:images}});t.after(()=>server.close());

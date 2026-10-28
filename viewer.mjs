@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {backfillGroup} from './history.mjs';
 import {manageService} from './service.mjs';
 
@@ -120,11 +120,32 @@ export async function startViewer(root, sessions, memory, port = 6098, wake = nu
             return reply({ok:true,settings,message:'生图设置已保存，下次请求立即生效；进行中的任务沿用原来源。'});
           }
           if(body.action==='cancel'){bot.doubao.chatgpt.cancel(body.jobId);return reply({ok:true,message:'已停止等待这个任务，网页聊天和已经生成的图片仍保留。'});}
+          if(body.action==='resumeExisting'){
+            const result=bot.doubao.chatgpt.resumeExisting(body.jobId);
+            store?.audit('global','local-panel','image_existing_export_resumed',{jobId:body.jobId});
+            return reply({...result,message:'将继续读取原来的图片聊天，不会再次提交提示词。'});
+          }
           if(body.action==='test'){
             if(bot.doubao.provider!=='chatgpt')throw Error('请先选择 ChatGPT 生图来源');
             if(typeof body.prompt!=='string'||!body.prompt.trim()||body.prompt.length>3000||! /^(?:[a-f0-9-]{36})$/.test(body.requestId||''))throw Error('请填写测试提示词');
             const created=await bot.doubao.generate('local-panel',{prompt:body.prompt,ratio:'1:1',requestId:body.requestId});
             return reply({ok:true,jobId:created.job_id,message:'已提交一张 ChatGPT 测试图，会占用网页额度；结果只保存在本机，不发送到 QQ。'});
+          }
+          if(body.action==='sendToOwner'){
+            const owner=String(bot.moderation?.settings().owners[0]||'');
+            if(!/^\d{5,12}$/.test(owner))throw Error('请先配置主人QQ号');
+            const job=bot.doubao.chatgpt.jobs[body.jobId];
+            const testHash=createHash('sha256').update('local-panel').digest('hex').slice(0,16);
+            if(!job||job.chatHash!==testHash||job.status!=='completed'||!bot.doubao.imagePath(job.images?.[0]))throw Error('请先等本机测试图保存完成');
+            const target='private:'+owner,old=bot.doubao.deliveries[job.id];
+            if(old&&old.chat!==target)throw Error('此图片已有其他交付目标');
+            if(!old){
+              bot.doubao.saveDelivery(job.id,{provider:'chatgpt',chat:target,user:owner,prompt:job.prompt,status:'ready',createdAt:Date.now(),
+                event:{message_type:'private',group_id:target,user_id:Number(owner),message_id:'image-job:'+job.id}});
+              store?.audit('global','local-panel','image_test_send_requested',{jobId:job.id,owner});
+            }
+            bot.watchDoubaoDelivery(job.id);
+            return reply({ok:true,jobId:job.id,owner,deliveryStatus:bot.doubao.deliveries[job.id].status,message:'图片已加入主人私聊的交付队列；QQ离线时保留，恢复后补发。'});
           }
           if(!['Start','Stop','Restart','Status','Login','InstallExtension'].includes(body.action))throw Error('请选择明确的图片服务操作');
           if(body.action==='Status')return reply(bot.doubao.summary());
